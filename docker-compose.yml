@@ -1,0 +1,13 @@
+version: '3'
+
+services:
+  tensorboard:
+    image: tensorflow/tensorflow:latest
+    command: tensorboard --logdir=/logs --bind_all
+    ports:
+      - "6006:6006"
+    volumes:
+      - ./whisper-v3-turbo-ko:/logs
+    restart: unless-stopped
+    environment:
+      - TENSORBOARD_PORT=6006 
