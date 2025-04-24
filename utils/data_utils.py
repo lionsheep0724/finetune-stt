@@ -7,7 +7,7 @@ from typing import Dict, List, Union, Any, Tuple, Optional, Callable
 from transformers import WhisperProcessor, WhisperFeatureExtractor, WhisperTokenizer
 from tqdm import tqdm
 
-def load_data_from_directory(data_dir: str) -> Dataset:
+def load_data_from_directory(data_dir: str, max_samples: int = None) -> Dataset:
     """
     지정된 디렉토리에서 오디오-텍스트 쌍을 로드합니다.
     파일 구조가 다음과 같이 되어 있다고 가정합니다:
@@ -18,6 +18,10 @@ def load_data_from_directory(data_dir: str) -> Dataset:
     
     오디오와 텍스트 파일은 공통 하위 경로와 파일명으로 매칭됩니다.
     오디오 파일은 TS_로 시작하고 텍스트 파일은 TL_로 시작합니다.
+    
+    Args:
+        data_dir: 데이터 디렉토리
+        max_samples: 로드할 최대 샘플 수 (기본값: None, 모든 샘플 로드)
     """
     audio_files: List[str] = []
     transcripts: List[str] = []
@@ -146,6 +150,11 @@ def load_data_from_directory(data_dir: str) -> Dataset:
         for pattern_key, audio_path in audio_paths.items():
             wav_matching_progress.update(1)
             
+            # 최대 샘플 수에 도달했는지 확인
+            if max_samples is not None and matched_count >= max_samples:
+                print(f"최대 샘플 수 {max_samples}개에 도달했습니다. 나머지 파일 처리를 중단합니다.")
+                break
+                
             if pattern_key in text_paths:
                 try:
                     # 텍스트 파일 읽기
@@ -191,6 +200,17 @@ def load_data_from_directory(data_dir: str) -> Dataset:
             # 10개 이상인 경우 생략 표시
             if failed_count > 10:
                 print(f"  ... 그 외 {failed_count - 10}개 항목 생략...")
+        
+        # 최대 샘플 수에 도달했는지 확인
+        if max_samples is not None and matched_count >= max_samples:
+            print(f"최대 샘플 수 {max_samples}개에 도달했습니다. 나머지 디렉토리 처리를 중단합니다.")
+            break
+    
+    # 샘플 수 제한
+    if max_samples is not None and len(audio_files) > max_samples:
+        print(f"데이터셋을 {max_samples}개 샘플로 제한합니다...")
+        audio_files = audio_files[:max_samples]
+        transcripts = transcripts[:max_samples]
     
     print(f"총 {len(audio_files)}개의 오디오-텍스트 쌍을 찾았습니다.")
     if len(audio_files) == 0:

@@ -35,10 +35,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--fp16", action="store_true", help="fp16 사용")
     parser.add_argument("--test_size", type=float, default=0.1, help="테스트 데이터 비율")
     parser.add_argument("--seed", type=int, default=42, help="랜덤 시드")
-    parser.add_argument("--num_proc", type=int, default=4, help="데이터 전처리 프로세스 수")
+    parser.add_argument("--num_proc", type=int, default=1, help="데이터 전처리 프로세스 수")
     parser.add_argument("--chunk_length", type=int, default=30, help="오디오 청크 길이(초), 기본값은 30초")
     parser.add_argument("--logging_steps", type=int, default=25, help="로깅 간격")
     parser.add_argument("--tensorboard_dir", type=str, default=None, help="TensorBoard 로그 디렉토리 (기본값: output_dir)")
+    parser.add_argument("--max_samples", type=int, default=None, help="사용할 최대 샘플 수")
     return parser.parse_args()
 
 def main() -> None:
@@ -50,7 +51,7 @@ def main() -> None:
     
     # 데이터 로드
     print("데이터 로드 중...")
-    dataset: Dataset = load_data_from_directory(args.data_dir)
+    dataset: Dataset = load_data_from_directory(args.data_dir, args.max_samples)
     
     # 학습/테스트 데이터 분할
     print(f"총 {len(dataset)} 개의 샘플이 로드되었습니다. 데이터 분할 중...")
@@ -91,10 +92,12 @@ def main() -> None:
         "test": dataset_dict["test"]
     })
     
+    
     processed_dataset: DatasetDict = dataset_dict_hf.map(
         map_function,
         remove_columns=dataset_dict_hf["train"].column_names,
-        num_proc=args.num_proc
+        num_proc=args.num_proc,
+        load_from_cache_file=False  # 캐시 문제 방지
     )
     
     # 데이터 콜레이터 생성
@@ -104,7 +107,7 @@ def main() -> None:
     )
     
     # 메트릭 콜백 생성
-    metrics_callback: MetricsCallback = MetricsCallback(processor.tokenizer)
+    metrics_callback: MetricsCallback = MetricsCallback(tokenizer)
     
     # 학습 인자 설정
     training_args: Seq2SeqTrainingArguments = Seq2SeqTrainingArguments(
@@ -141,7 +144,7 @@ def main() -> None:
         eval_dataset=processed_dataset["test"],
         data_collator=data_collator,
         compute_metrics=metrics_callback,
-        tokenizer=processor.feature_extractor,
+        tokenizer=feature_extractor,
     )
     
     # 학습 시작
